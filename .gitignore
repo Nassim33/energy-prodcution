@@ -1,0 +1,22 @@
+node_modules
+dist
+dist-ssr
+coverage
+*.local
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# env
+.env
+.env.local
+
+# generated
+src/routeTree.gen.ts
+src/api/gen
+public/mockServiceWorker.js
+
+npm-debug.log*
+pnpm-debug.log*
