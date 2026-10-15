@@ -29,9 +29,14 @@ export function renderWithProviders(ui: ReactElement, { path = "/" }: { path?: s
     path: "/posts/$postId",
     component: () => null,
   });
+  const generationDetailRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/generation/$productionType",
+    component: () => null,
+  });
 
   const router = createRouter({
-    routeTree: rootRoute.addChildren([testRoute, postDetailRoute]),
+    routeTree: rootRoute.addChildren([testRoute, postDetailRoute, generationDetailRoute]),
     history: createMemoryHistory({ initialEntries: [path] }),
   });
 

@@ -3,6 +3,7 @@ import { getCookie } from "@/shared/utils/web";
 
 export interface RequestConfig<TData = unknown> {
   url?: string;
+  baseURL?: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   params?: object;
   data?: TData | FormData;
@@ -40,6 +41,7 @@ const DEFAULT_RETRIES = 2;
 function serializeBody<T>(data: T | FormData | undefined): BodyInit | undefined {
   if (data == null) return undefined;
   if (data instanceof FormData) return data;
+  if (typeof data === "string") return data;
   return JSON.stringify(data);
 }
 
@@ -65,7 +67,7 @@ export const client = async <TData, TError = unknown, TRequestData = unknown>(
   config: RequestConfig<TRequestData>,
   // eslint-disable-next-line sonarjs/cognitive-complexity
 ): Promise<ResponseConfig<TData>> => {
-  const url = new URL(`${apiConfig.baseURL}${config.url}`, location.origin);
+  const url = new URL(`${config.baseURL ?? apiConfig.baseURL}${config.url}`, location.origin);
 
   if (config.params) {
     for (const [key, value] of Object.entries(config.params)) {

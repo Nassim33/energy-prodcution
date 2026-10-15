@@ -1,31 +1,34 @@
-import { useAppStore } from "@/store/useAppStore";
 import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { Layout, Menu } from "antd";
-
+import { ThunderboltFilled } from "@ant-design/icons";
+import { Layout, Menu, Space } from "antd";
 
 export const Route = createRootRoute({
   component: RootLayout,
 });
 
 function RootLayout() {
-    const { themeMode } = useAppStore();
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-      <Layout.Header style={{ display: "flex", alignItems: "center", gap: 24 }}>
-        <span style={{ color: "#f8fafc", fontWeight: 600 }}>Starter 2026</span>
+    <Layout style={{ minHeight: "100vh", background: "#f4f7fb" }}>
+      <Layout.Header style={{ display: "flex", alignItems: "center", gap: 24, paddingInline: 24 }}>
+        <Link to="/" className="app-brand" aria-label="Accueil">
+          <ThunderboltFilled style={{ color: "#facc15", fontSize: 20 }} />
+          <span>Énergie France</span>
+        </Link>
         <Menu
-          theme={themeMode}
+          theme="dark"
           mode="horizontal"
-          style={{ flex: 1, minWidth: 0 }}
+          style={{ flex: 1, minWidth: 0, fontWeight: 500, background: "transparent" }}
           items={[
-            { key: "home", label: <Link to="/">Home</Link> },
+            { key: "home", label: <Link to="/">Production</Link> },
             { key: "posts", label: <Link to="/posts">Posts</Link> },
           ]}
         />
       </Layout.Header>
       <Layout.Content style={{ padding: 24 }}>
-        <Outlet />
+        <Space className="app-container" direction="vertical" size={0}>
+          <Outlet />
+        </Space>
       </Layout.Content>
       {import.meta.env.DEV && <TanStackRouterDevtools position="bottom-right" />}
     </Layout>

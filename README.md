@@ -1,98 +1,102 @@
-# react-starter-2026
+# Énergie France — tableau de bord de la production d'énergie
 
-An opinionated React starter built around the current (2026) fast-tooling stack.
+SPA affichant la **production d'électricité en France** par filière, alimentée par les
+données ouvertes de **RTE** (API [Actual Generation](https://data.rte-france.com/catalog/-/api/doc/user-guide/Actual+Generation/1.1)).
+
+- **Page d'accueil** (`/`) : par filière, la dernière puissance injectée sur le réseau (MW) et sa
+  date de mise à jour, avec un filtre par catégorie (Renouvelable / Non-renouvelable / Nucléaire).
+- **Page graphique** (`/generation/:type`) : évolution d'une filière sur les 7 derniers jours
+  (line chart, librairie [recharts](https://recharts.org)). Accessible au clic sur une carte.
 
 ## Stack
 
-| Concern             | Tool                                                                                          |
-| ------------------- | --------------------------------------------------------------------------------------------- |
-| Build / dev server  | **Vite 6** + `@vitejs/plugin-react-swc`                                                       |
-| UI kit              | **antd 5**                                                                                    |
-| Routing             | **TanStack Router** (file-based, fully type-safe)                                             |
-| Server state        | **TanStack Query 5**                                                                          |
-| Client state        | **Zustand** (persist + devtools middleware)                                                   |
-| Schema validation   | **Zod** (form + API response validation)                                                      |
-| API code generation | **Kubb** (OpenAPI → typed Zod schemas + Query hooks)                                          |
-| HTTP client         | Hand-written `fetch` client (`src/lib/api-client.ts`) — retries, timeouts, abort, CSRF header |
-| Linting             | **oxlint** (oxc's Rust-based linter, ~50-100x ESLint)                                         |
-| Formatting          | **oxfmt** (oxc's Rust-based formatter, Prettier-compatible)                                  |
-| Testing             | **Vitest** + **Testing Library** + **MSW**                                                    |
-| Git hooks           | **husky** + **lint-staged**                                                                   |
-| CI                  | GitHub Actions (typecheck → lint → format → test → build)                                     |
+| Concern            | Tool                                          |
+| ------------------ | --------------------------------------------- |
+| Build / dev server | Vite 6 (SWC)                                  |
+| UI kit             | antd 5                                        |
+| Routing            | TanStack Router (file-based)                  |
+| Server state       | TanStack Query 5                              |
+| Client state       | Zustand                                       |
+| Validation         | Zod                                           |
+| API RTE            | fetch client maison (`src/lib/api-client.ts`) |
+| Charts             | recharts                                      |
+| Linting            | oxlint                                        |
+| Formatting         | oxfmt                                         |
+| Testing            | Vitest + Testing Library + MSW                |
+| Git hooks          | husky + lint-staged                           |
 
-## Getting started
+## Démarrage rapide
+
+Prérequis : Node >= 20, `pnpm@9`.
 
 ```bash
 pnpm install
-cp .env.example .env
-pnpm dev
+cp .env.example .env   # → mocks MSW par défaut ; cf. « Données RTE »
+pnpm dev               # http://localhost:5173
 ```
 
-The first `pnpm dev` (or `pnpm build`) run generates `src/routeTree.gen.ts` automatically via
-the TanStack Router Vite plugin — don't hand-edit that file.
+Le premier `pnpm dev`/`pnpm build` génère `src/routeTree.gen.ts` (ne pas l'éditer à la main).
 
-Mock Service Worker needs its browser worker file once:
+### Données RTE : du simulé au réel
 
-```bash
-pnpm dlx msw init public/ --save
-```
+Avec `VITE_ENABLE_MOCKS=true`, l'application tourne **hors ligne** avec **MSW** : le worker interrompt
+les appels et renvoie des données simulées déterministes (`src/mocks/generationData.ts`), partagées
+entre le dev et les tests. Aucune clé RTE n'est nécessaire.
 
-## API codegen with Kubb
+Pour utiliser de **vraies données**, une clé active (`.env`) + `VITE_ENABLE_MOCKS=false` suffisent :
+la clé `MTY5...NjQ5NQ==` fournie fonctionne (12 filières, valeurs horaires). Vérifiée en direct via
+`curl` (jeton + données OK).
 
-`openapi.yaml` at the repo root is the source of truth for the API. `src/api/posts.ts` is a
-hand-written stand-in that mirrors what Kubb will produce, so the app runs before you connect a
-real backend. Once your spec is ready:
+Flux d'authentification (OAuth2, conforme au guide RTE) :
 
-```bash
-pnpm generate
-```
+1. `POST {base}/token/oauth/` avec `Authorization: Basic <VITE_RTE_IDENTIFIER>` (base64 de
+   `client_id:client_secret`) et `grant_type=client_credentials` → jeton Bearer (cache 1h) ;
+2. `GET {base}/open_api/actual_generation/v1/actual_generations_per_production_type?start_date=...&end_date=...`
+   avec `Authorization: Bearer <jeton>`. Les dates (ISO 8601) couvrent les 7 derniers jours.
 
-This regenerates `src/api/gen/**` with:
-
-- `types/` — TypeScript types from the OpenAPI schemas
-- `zod/` — Zod schemas (validate requests/responses at runtime)
-- `clients/fetch/` — typed request functions built on `src/lib/api-client.ts`
-- `hooks/` — typed `useQuery` / `useMutation` hooks per operation
-
-Nothing under `src/api/gen` should be edited by hand; re-run `pnpm generate` whenever the spec
-changes, then swap imports in components from `src/api/posts.ts` to `src/api/gen/hooks`.
+**CORS** : la passerelle RTE ne renvoie pas d'en-tête CORS et rejette les requêtes navigateur
+portant un entête `Origin` (403). `VITE_RTE_BASE_URL` pointe donc directement sur l'hôte RTE pour
+les appels réels ; en production, relayez ces appels derrière un proxy serveur côté app
+(entête `Origin`/`Referer` retirée) pour éviter le blocage navigateur. Un proxy de dev `/rte`
+(same-origin, retire `Origin`/`Referer`) demeure disponible dans `vite.config.ts` → `server.proxy`
+si besoin.
 
 ## Scripts
 
-| Script                         | What it does                                      |
-| ------------------------------ | ------------------------------------------------- |
-| `pnpm dev`                     | Start Vite dev server                             |
-| `pnpm build`                   | Typecheck + production build                      |
-| `pnpm test` / `test:watch`     | Run Vitest once / in watch mode                   |
-| `pnpm test:ui`                 | Vitest's browser UI runner                        |
-| `pnpm coverage`                | Test run with V8 coverage                         |
-| `pnpm lint` / `lint:fix`       | oxlint                                            |
-| `pnpm format` / `format:check` | oxfmt                                              |
-| `pnpm typecheck`               | `tsc -b --noEmit`                                 |
-| `pnpm generate`                | Regenerate API layer from `openapi.yaml` via Kubb |
-| `pnpm check`                   | Everything CI runs, locally                       |
+| Script                         | Rôle                                                  |
+| ------------------------------ | ----------------------------------------------------- |
+| `pnpm dev`                     | Serveur de dev Vite                                   |
+| `pnpm build`                   | Typecheck + build de production                       |
+| `pnpm test` / `test:watch`     | Vitest (une fois / watch)                             |
+| `pnpm coverage`                | Vitest avec couverture V8                             |
+| `pnpm lint` / `lint:fix`       | oxlint (`--deny-warnings`)                            |
+| `pnpm format` / `format:check` | oxfmt                                                 |
+| `pnpm typecheck`               | `tsc -b --noEmit`                                     |
+| `pnpm generate`                | Regénère `src/api/gen` depuis `openapi.yaml` via Kubb |
+| `pnpm check`                   | typecheck + lint + format:check + test (comme la CI)  |
 
-## Project layout
+## Structure
 
 ```
 src/
-  routes/            # TanStack Router file-based routes (__root, index, posts/...)
-  components/         # UI components (+ colocated *.test.tsx)
-  api/                # posts.ts (hand-written) + gen/ (Kubb output, gitignored)
-  schemas/            # Zod schemas
-  store/              # Zustand stores
-  lib/                # fetch api-client, query client, antd theme
-  config/              # app.config.ts (api base URL, cookie name)
-  shared/utils/         # web.ts (getCookie, used for CSRF header)
-  mocks/              # MSW handlers (shared by dev worker + Vitest server)
-  test/               # Vitest setup + render helpers
+  routes/                # TanStack Router (index.tsx, generation/$productionType.tsx)
+  components/            # UI (+ tests *.test.tsx)
+  api/                   # generation.ts : hooks Query vers l'API RTE (pattern posts.ts)
+  schemas/               # generation.ts : schémas Zod du payload RTE
+  shared/                # dates.ts, format.ts, generationMeta.ts (catégories/labels/couleurs)
+  mocks/                 # handlers.ts + generationData.ts (payload RTE simulé)
+  lib/                   # api-client, query client, theme antd
+  config/                # app.config.ts (base URL, cookie, config RTE)
+  test/                  # setup Vitest + renderWithProviders
 ```
 
-## Notes
+## Points notables
 
-- `noUncheckedIndexedAccess` and `strict` are on in `tsconfig.app.json` — expect to handle
-  `undefined` from array/object indexing.
-- oxlint replaces ESLint for speed; **oxfmt** (also part of the oxc toolchain) replaces Prettier —
-  it's Prettier-compatible and ~30x faster. Config lives in `.oxfmtrc.jsonc`. If you were on
-  Prettier before, `pnpm dlx oxfmt --migrate prettier` converts an existing config.
-- Swap the antd theme tokens in `src/lib/theme.ts` for your brand.
+- `strict` + `noUncheckedIndexedAccess` actifs : penser à gérer `undefined` sur les indexations.
+- oxlint remplace ESLint ; tout warning fait échouer `pnpm lint` (dont `no-console`).
+- La clé RTE voyage dans le bundle client (`VITE_`). Pour une mise en production publique,
+  acheminez les appels RTE via un proxy serveur qui injecte l'entête `Authorization`.
+- Le thème de la marque vit dans `src/lib/theme.ts`, les couleurs par filière dans
+  `src/shared/generationMeta.ts`.
+- `vite.config.ts` proxy `/api` → `http://localhost:4000` (backend) et `/rte` → RTE (entête
+  `Origin` retirée, sinon passe 403).

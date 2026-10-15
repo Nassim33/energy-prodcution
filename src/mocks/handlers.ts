@@ -1,5 +1,8 @@
 import { http, HttpResponse } from "msw";
+import { rteConfig } from "@/config/app.config";
 import type { Post } from "@/schemas/post";
+import { getWeeklyWindow } from "@/shared/dates";
+import { buildMockActualGeneration } from "@/mocks/generationData";
 
 const posts: Post[] = [
   {
@@ -36,4 +39,23 @@ export const handlers = [
     posts.push(newPost);
     return HttpResponse.json(newPost, { status: 201 });
   }),
+
+  http.post(`${rteConfig.baseURL}/token/oauth/`, () => {
+    return HttpResponse.json({
+      access_token: "mock-rte-access-token",
+      token_type: "Bearer",
+      expires_in: 3600,
+    });
+  }),
+
+  http.get(
+    `${rteConfig.baseURL}/open_api/actual_generation/v1/actual_generations_per_production_type`,
+    ({ request }) => {
+      const searchParams = new URL(request.url).searchParams;
+      const { startDate, endDate } = getWeeklyWindow();
+      const start = searchParams.get("start_date") ?? startDate;
+      const end = searchParams.get("end_date") ?? endDate;
+      return HttpResponse.json(buildMockActualGeneration(start, end));
+    },
+  ),
 ];
